@@ -162,7 +162,7 @@ class DataLoader(object):
         im, intrinsics = random_cropping(im, intrinsics, out_h, out_w)
         # [0, 255] -> [0, 1]
         im_photo = im/255.
-        im_photo = [im_photo[:,:,:,3*i:3*(i+1)] for i in range(self.num_source+1)]
+        im_photo = [im_photo[:,:,:,3*i:3*(i+1)] for i in range(2)]
         im_photo = random_photometric(im_photo)
         # [0, 1] -> [0, 255]
         im_photo = im_photo*255.
@@ -186,29 +186,29 @@ class DataLoader(object):
 
     def unpack_image_sequence(self, image_seq, img_height, img_width, num_source):
         # Assuming the center image is the target frame
-        tgt_start_idx = int(img_width * (num_source//2))
+        #tgt_start_idx = int(img_width * (num_source//2))
         tgt_image = tf.slice(image_seq, 
-                             [0, tgt_start_idx, 0], 
+                             [0, 0, 0], 
                              [-1, img_width, -1])
         # Source frames before the target frame
-        src_image_1 = tf.slice(image_seq, 
-                               [0, 0, 0], 
-                               [-1, int(img_width * (num_source//2)), -1])
+        src_image = tf.slice(image_seq, 
+                               [0, img_width, 0], 
+                               [-1,img_width, -1])
         # Source frames after the target frame
-        src_image_2 = tf.slice(image_seq, 
-                               [0, int(tgt_start_idx + img_width), 0], 
-                               [-1, int(img_width * (num_source//2)), -1])
-        src_image_seq = tf.concat([src_image_1, src_image_2], axis=1)
+        #src_image_2 = tf.slice(image_seq, 
+        #                       [0, int(tgt_start_idx + img_width), 0], 
+        #                       [-1, int(img_width * (num_source//2)), -1])
+        #src_image_seq = tf.concat([src_image_1, src_image_2], axis=1)
         # Stack source frames along the color channels (i.e. [H, W, N*3])
-        src_image_stack = tf.concat([tf.slice(src_image_seq, 
-                                    [0, i*img_width, 0], 
-                                    [-1, img_width, -1]) 
-                                    for i in range(num_source)], axis=2)
-        src_image_stack.set_shape([img_height, 
+        #src_image_stack = tf.concat([tf.slice(src_image_seq, 
+                                   # [0, i*img_width, 0], 
+                                   # [-1, img_width, -1]) 
+                                   # for i in range(num_source)], axis=2)
+        src_image.set_shape([img_height, 
                                    img_width, 
-                                   num_source * 3])
+                                    3])
         tgt_image.set_shape([img_height, img_width, 3])
-        return tgt_image, src_image_stack
+        return tgt_image, src_image
 
     def batch_unpack_image_sequence(self, image_seq, img_height, img_width, num_source):
         # Assuming the center image is the target frame
