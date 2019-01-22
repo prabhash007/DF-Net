@@ -14,7 +14,8 @@ flags.DEFINE_string("checkpoint_dir", "./ckpt/dfnet", "Directory name to save th
 #flags.DEFINE_string("ckpt_pose", None, "checkpoint for Pose Net, if not shared with Depth Net")
 flags.DEFINE_float("learning_rate", 0.0001, "Learning rate of for adam")
 flags.DEFINE_float("beta1", 0.9, "Momentum term of adam")
-flags.DEFINE_float("smooth_weight", 3.0, "Weight for smoothness")
+flags.DEFINE_float("explain_reg_weight", 0.3, "Weight for explanability regularization")
+flags.DEFINE_float("smooth_weight", 1.5, "Weight for smoothness") #changed from 3.0 to 0.5
 flags.DEFINE_float("alpha_image_loss", 0.85, "Weight between SSIM and L1 in the image loss")
 flags.DEFINE_float("depth_consistency", 0.2, "Weight for forward-backward depth consistency loss.")
 flags.DEFINE_float("flow_smooth_weight", 3.0, "Weight for flow smoothness")

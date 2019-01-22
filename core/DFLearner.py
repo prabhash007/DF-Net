@@ -81,7 +81,7 @@ class DFLearner(BaseLearner):
                 for i in range(opt.num_gpus):
                     with tf.device('/gpu:%d' % i):
                         losses, grads = self.single_tower_operation(optim, tgt_image_dp_splits[i], src_image_stack_dp_splits[i], tgt_image_flow_splits[i], src_image_stack_flow_splits[i], tgt_image_splits[i], src_image_stack_splits[i], intrinsics_splits[i], model_idx=i)
-                        dp_pixel_loss, dp_smooth_loss, depth_consistency_loss = losses
+                        dp_pixel_loss, dp_smooth_loss, depth_consistency_loss, exp_loss = losses
                         tower_dp_pixel_losses.append(dp_pixel_loss)
                         tower_dp_smooth_losses.append(dp_smooth_loss)
                         tower_depth_consistency_losses.append(depth_consistency_loss)
@@ -110,6 +110,7 @@ class DFLearner(BaseLearner):
             self.dp_pixel_loss = dp_pixel_loss
             self.dp_smooth_loss = dp_smooth_loss
             self.depth_consistency_loss = depth_consistency_loss
+            self.exp_loss = exp_loss
             #self.flow_pixel_loss = flow_pixel_loss
             #self.flow_smooth_loss = flow_smooth_loss
             #self.flow_consistency_loss = flow_consistency_loss
@@ -137,7 +138,7 @@ class DFLearner(BaseLearner):
             src_pred_depths = ([1./d for d in src_pred_disps])
 
         with tf.name_scope("pose_prediction"):
-            pred_poses, _ = pose_net_fb(tgt_image_dp, src_image_stack_dp, is_training=True, reuse=reuse_variables)
+            pred_poses,pred_exp_logits, _ = pose_net_fb(tgt_image_dp, src_image_stack_dp, do_exp=(opt.explain_reg_weight > 0), is_training=True, reuse=reuse_variables)
             if opt.fix_pose:
                 pred_poses = tf.stop_gradient(pred_poses)
 
@@ -155,6 +156,7 @@ class DFLearner(BaseLearner):
         layer_weights = [12.7, 4.35, 3.9, 3.4, 1.1]
         with tf.name_scope("compute_loss"):
             dp_pixel_loss = 0
+            exp_loss = 0
             dp_smooth_loss = 0
             depth_consistency_loss = 0
            # flow_pixel_loss = 0
@@ -187,6 +189,10 @@ class DFLearner(BaseLearner):
             for s in range(opt.num_scales):
                 # Scale the source and target images for computing loss at the 
                 # according scale.
+                if opt.explain_reg_weight > 0:
+                    # Construct a reference explainability mask (i.e. all 
+                    # pixels are explainable)
+                    ref_exp_mask = self.get_reference_explain_mask(s)
                 curr_tgt_image = tf.image.resize_area(tgt_image[:,:,:,:3], 
                     [int(opt.img_height/(2*2**s)), int(opt.img_width/(2*2**s))])                
                 curr_src_image_stack = tf.image.resize_area(src_image_stack[:,:,:,:3], 
@@ -201,6 +207,17 @@ class DFLearner(BaseLearner):
                 #for i in range(opt.num_source):
                     ### For DP (Only 4 scales)
                 if s < 4:
+                    if opt.explain_reg_weight > 0:
+                        curr_exp_logits = tf.slice(pred_exp_logits[s], 
+                                                   [0, 0, 0, 0], 
+                                                   [-1, -1, -1, 2])
+                        exp_loss += opt.explain_reg_weight * \
+                            self.compute_exp_reg_loss(curr_exp_logits,
+                                                      ref_exp_mask)
+                        curr_exp = tf.nn.softmax(curr_exp_logits)
+
+
+                
                     # Pose: tgt->src, warp src->tgt
                     curr_proj_image_src2tgt, coords_tgt2src = projective_inverse_warp(
                         curr_src_image_stack, 
@@ -366,7 +383,7 @@ class DFLearner(BaseLearner):
                     #flow_inrange_mask_src_stack_all.append(flow_inrange_mask_src_stack)
                     #flow_occ_mask_tgt_stack_all.append(flow_occ_mask_tgt_stack)
                     #flow_occ_mask_src_stack_all.append(flow_occ_mask_src_stack)
-            total_loss = dp_pixel_loss+dp_smooth_loss+depth_consistency_loss
+            total_loss = dp_pixel_loss+dp_smooth_loss+depth_consistency_loss+exp_loss
 
         if model_idx == 0:
             # Collect tensors that are useful later (e.g. tf summary)
@@ -398,7 +415,7 @@ class DFLearner(BaseLearner):
             #self.flow_occ_mask_src_stack_all = flow_occ_mask_src_stack_all
 
         grads = optim.compute_gradients(total_loss)
-        return [dp_pixel_loss, dp_smooth_loss, depth_consistency_loss], grads
+        return [dp_pixel_loss, dp_smooth_loss, depth_consistency_loss,exp_loss], grads
 
     def collect_summaries(self):
         opt = self.opt

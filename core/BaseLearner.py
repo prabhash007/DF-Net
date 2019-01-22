@@ -77,6 +77,23 @@ class BaseLearner(object):
         occ_mask = tf.greater(temp1, alpha1*temp2+alpha2)
         return tf.stop_gradient(tf.cast(occ_mask, tf.float32))
 
+    def compute_exp_reg_loss(self, pred, ref):
+        l = tf.nn.softmax_cross_entropy_with_logits(
+            labels=tf.reshape(ref, [-1, 2]),
+            logits=tf.reshape(pred, [-1, 2]))
+        return tf.reduce_mean(l)
+
+    def get_reference_explain_mask(self, downscaling):
+        opt = self.opt
+        tmp = np.array([0,1])
+        ref_exp_mask = np.tile(tmp, 
+                               (opt.batch_size, 
+                                int((opt.img_height/2)/(2**downscaling)), 
+                                int((opt.img_width/2)/(2**downscaling)), 
+                                1))
+        ref_exp_mask = tf.constant(ref_exp_mask, dtype=tf.float32)
+        return ref_exp_mask      
+
     # Crecit: https://github.com/simonmeister/UnFlow/blob/master/src/e2eflow/core/losses.py
     def ternary_loss(self, im1, im2_warped, valid_mask, max_distance=1):
         patch_size = 2*max_distance+1
