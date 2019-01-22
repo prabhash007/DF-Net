@@ -1,3 +1,5 @@
+Pretraining only
+
 # DF-Net: Unsupervised Joint Learning of Depth and Flow using Cross-Task Consistency
 
 A TensorFlow re-implementation for [DF-Net: Unsupervised Joint Learning of Depth and Flow using Cross-Task Consistency](https://arxiv.org/abs/1809.01649). There are some minor differences from the model described in the paper:
